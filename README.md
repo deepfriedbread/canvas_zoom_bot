@@ -1,4 +1,5 @@
 # canvas_zoom_bot
+WORK IN PROGRESS <br><br>
 Python script to automate joining of zoom meetings via canvas  
 Features:
 - Logs in to canvas and launches zoom automatically when meeting time is reached
