@@ -4,8 +4,6 @@ import pywinauto
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 from datetime import datetime
 from playwright.sync_api import sync_playwright
 from collections import Counter
@@ -14,19 +12,9 @@ from pywinauto.application import Application
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
 
-USERNAME = ""
-PASSWORD = ""
+USERNAME = os.environ['USERNAME']
+PASSWORD = os.environ['PASSWORD']
 
-def send_slack_message(message):
-    client = WebClient(token=os.environ['slack_token'])
-    try:
-        response = client.chat_postMessage(
-            channel="#zoom_bot",
-            text=message
-        )
-        print("Message sent: ",response["ts"])
-    except SlackApiError as e:
-        print("Error sending message: ",e)
 
 def main():
     with sync_playwright() as p:
@@ -38,8 +26,9 @@ def main():
         # login canvas
         page.fill("//*[@id='pseudonym_session_unique_id']",USERNAME)
         page.fill("//*[@id='pseudonym_session_password']",PASSWORD)
-        page.locator('button:text("Log In")').click()
-        #page.click("//*[@id='login_form']/div[4]/div[2]/button")
+        #page.locator('button:text("Log In")').click()
+        #using this instead cause they wanted to change the button type for some reason
+        page.click("//*[@id='login_form']/div[4]/div[2]/button")
 
 
         # opens zoom link depending on number of diff meetings, relies on amount of links in
@@ -49,8 +38,8 @@ def main():
         locatorlist = frame1.get_by_role('link').all()
         if len(locatorlist) > 1:
             count = -1
-            for i in locatorlist:
-                x = i.get_attribute('href')
+            for meeting_locator in locatorlist:
+                x = meeting_locator.get_attribute('href')
                 count += 1
                 if df2['meeting_id'].iloc[0] in x:
                     locator = locatorlist[count]
@@ -117,7 +106,7 @@ def zoom_window():
     message_old = None
     while True:
         c=Counter()
-        for x in chatBox:
+        for chat_message in chatBox:
             chat_entry = str(chatBox.get_item(i))
             chat_entry = chat_entry.split(',',maxsplit=2)[2]
             chat_entry = chat_entry.rsplit(',',maxsplit=3)[0]
@@ -151,18 +140,17 @@ def zoom_window():
 df = pd.read_csv("datetime_zoom.csv")
 df = df.fillna(0).astype({'meeting_id':'int64'})
 df = df.astype({'meeting_id':'str'})
-
+launched = False
 
 #launches canvas when lesson time in csv == current time
 while True:
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
     #test = "26/01/2023 12:00"
     df2=df[df['datetime'].isin([now])]
-    if not df2.empty:
+    if not df2.empty and launched ==False:
+        launched = True
         url = df2['url'].iloc[0]
-        send_slack_message("Joining Zoom Meeting")
         main()
-        send_slack_message("Zoom Meeting Joined")
         time.sleep(3)
         zoom_window()
         
